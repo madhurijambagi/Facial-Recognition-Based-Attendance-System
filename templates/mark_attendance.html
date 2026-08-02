@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mark Attendance | Digital Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+  <!--
+    face-api.js: lightweight (650 KB), works offline-friendly,
+    uses TinyFaceDetector + 68-point landmarks — no external model server needed.
+    Models are loaded from jsDelivr CDN weights.
+  -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    body { font-family:'DM Sans',sans-serif; background:#f1f5f9; color:#0f172a; }
+    .navbar-custom { background:linear-gradient(90deg,#0f172a,#2563eb); }
+    .page-card { background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,.08); padding:1.75rem; }
+    #subjectSelect { font-family:inherit; border-radius:10px; }
+    #startMarkBtn { background:linear-gradient(135deg,#2563eb,#4f46e5); border:none; border-radius:10px; }
+    #stopMarkBtn  { border-radius:10px; }
+
+    .video-wrap {
+      position:relative; display:inline-block;
+      border-radius:12px; overflow:hidden;
+      border:2px solid #e2e8f0; width:100%; max-width:560px;
+    }
+    #markVideo     { display:block; width:100%; height:auto; }
+    #overlayCanvas {
+      position:absolute; top:0; left:0;
+      width:100%; height:100%; pointer-events:none;
+    }
+
+    #markStatus { font-size:.9rem; color:#64748b; margin-top:.5rem; min-height:1.6em; }
+
+    /* Liveness bar */
+    #livenessBar { height:8px; border-radius:8px; background:#e2e8f0; margin-top:.35rem; overflow:hidden; }
+    #livenessBarFill {
+      height:100%; width:0%; border-radius:8px;
+      background:linear-gradient(90deg,#f59e0b,#10b981);
+      transition:width .3s ease;
+    }
+    #livenessLabel { font-size:.78rem; color:#64748b; margin-top:.2rem; }
+
+    .liveness-pill {
+      display:inline-block; padding:.3rem .9rem; border-radius:50px;
+      font-size:.82rem; font-weight:700; margin-top:.4rem;
+      transition:background .3s, color .3s;
+    }
+    .pill-wait    { background:#fef9c3; color:#d97706; }
+    .pill-blink   { background:#dbeafe; color:#1d4ed8; }
+    .pill-ok      { background:#dcfce7; color:#16a34a; }
+    .pill-fail    { background:#fee2e2; color:#dc2626; }
+
+    .recognized-item {
+      display:flex; align-items:center; gap:.6rem;
+      padding:.55rem .8rem; border-radius:10px;
+      background:#f0fdf4; border:1px solid #bbf7d0;
+      margin-bottom:.4rem; font-size:.9rem;
+    }
+    .recognized-item .avatar {
+      width:30px; height:30px; border-radius:50%;
+      background:linear-gradient(135deg,#10b981,#059669);
+      color:#fff; font-weight:700; font-size:.85rem;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .recognized-item .rname { font-weight:600; }
+    .recognized-item .rtime { font-size:.78rem; color:#64748b; }
+    .subject-badge {
+      display:inline-block; padding:.2rem .7rem;
+      background:#dbeafe; color:#1d4ed8;
+      border-radius:50px; font-size:.8rem; font-weight:700;
+    }
+    .empty-list { color:#94a3b8; font-size:.88rem; font-style:italic; text-align:center; padding:1.5rem 0; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark navbar-custom px-3 mb-4">
+  <a class="navbar-brand fw-bold" href="/">← Dashboard</a>
+  <span class="text-white-50 small">Mark Attendance — {{ user.name }}</span>
+</nav>
+
+<div class="container">
+  <div class="page-card">
+    <div class="row g-3 align-items-end mb-3">
+      <div class="col-md-5">
+        <label class="form-label fw-semibold">Select Subject</label>
+        <select id="subjectSelect" class="form-select">
+          <option value="" disabled selected>— Choose subject —</option>
+          {% for s in subjects %}
+          <option value="{{ s.subject_id }}">{{ s.subject_name }} ({{ s.subject_id }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button id="startMarkBtn" class="btn btn-primary px-4">▶ Start</button>
+        <button id="stopMarkBtn"  class="btn btn-danger px-4 ms-2" disabled>■ Stop</button>
+      </div>
+      <div class="col-auto ms-auto">
+        <span id="subjectBadge" class="subject-badge d-none"></span>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Camera -->
+      <div class="col-md-7 text-center">
+        <div class="video-wrap">
+          <video id="markVideo" autoplay muted playsinline></video>
+          <canvas id="overlayCanvas"></canvas>
+        </div>
+        <div id="markStatus">Waiting…</div>
+        <div id="livenessBar"><div id="livenessBarFill"></div></div>
+        <div id="livenessLabel">Liveness: waiting…</div>
+        <span id="livenessPill" class="liveness-pill pill-wait">Waiting for camera…</span>
+      </div>
+
+      <!-- Recognised list -->
+      <div class="col-md-5">
+        <h6 class="fw-bold mb-2">Recognised this session</h6>
+        <div id="recognizedList">
+          <div class="empty-list">No students recognised yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DOM ─────────────────────────────────────────────────────────────────────
+const startMarkBtn    = document.getElementById("startMarkBtn");
+const stopMarkBtn     = document.getElementById("stopMarkBtn");
+const subjectSelect   = document.getElementById("subjectSelect");
+const subjectBadge    = document.getElementById("subjectBadge");
+const markVideo       = document.getElementById("markVideo");
+const overlayCanvas   = document.getElementById("overlayCanvas");
+const markStatus      = document.getElementById("markStatus");
+const recognizedList  = document.getElementById("recognizedList");
+const livenessBarFill = document.getElementById("livenessBarFill");
+const livenessLabel   = document.getElementById("livenessLabel");
+const livenessPill    = document.getElementById("livenessPill");
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let markStream     = null;
+let markInterval   = null;
+let blinkInterval  = null;
+let overlayTimeout = null;
+let recognizedIds  = new Set();
+
+// Liveness
+let blinkConfirmed  = false;   // true once ≥1 blink detected
+let blinkCount      = 0;
+let motionOk        = false;
+let faceApiReady    = false;   // true once models loaded
+
+// EAR state
+let prevEAR         = null;
+const EAR_CLOSE     = 0.23;   // eye considered closed below this
+const EAR_OPEN      = 0.27;   // eye considered open above this
+let eyeWasClosed    = false;
+
+// Motion state (pixel-diff across frames)
+const frameHistory  = [];
+const HIST_LEN      = 6;
+const MOTION_THRESH = 1.8;    // mean pixel diff per channel — lower = more sensitive
+
+// ─── Canvas sync ─────────────────────────────────────────────────────────────
+new ResizeObserver(() => {
+  overlayCanvas.width  = markVideo.offsetWidth;
+  overlayCanvas.height = markVideo.offsetHeight;
+}).observe(markVideo);
+
+// ─── face-api.js model loading ───────────────────────────────────────────────
+// Models hosted on jsDelivr (same CDN as the library — reliable)
+const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model";
+
+async function loadFaceApi() {
+  if (typeof faceapi === "undefined") {
+    console.warn("face-api.js not loaded — blink detection will use motion-only fallback");
+    faceApiReady = false;
+    return;
+  }
+  try {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+    ]);
+    faceApiReady = true;
+    console.log("face-api.js models loaded ✅");
+  } catch(err) {
+    console.warn("face-api model load failed — using motion-only liveness:", err.message);
+    faceApiReady = false;
+  }
+}
+
+// Start loading models immediately (background, doesn't block page)
+loadFaceApi();
+
+// ─── EAR calculation (6-point eye landmark) ──────────────────────────────────
+function euclidean(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function eyeAspectRatio(pts) {
+  // pts: array of 6 {x,y} points  (standard 68-landmark eye indices)
+  const A = euclidean(pts[1], pts[5]);
+  const B = euclidean(pts[2], pts[4]);
+  const C = euclidean(pts[0], pts[3]);
+  return (A + B) / (2.0 * C);
+}
+
+// 68-landmark indices for left/right eye
+const L_EYE = [36, 37, 38, 39, 40, 41];
+const R_EYE = [42, 43, 44, 45, 46, 47];
+
+async function runBlinkDetection() {
+  if (!faceApiReady || !markVideo.srcObject) return;
+  if (markVideo.readyState < 2) return;
+
+  try {
+    const opts = new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 });
+    const result = await faceapi
+      .detectSingleFace(markVideo, opts)
+      .withFaceLandmarks(true);   // true = use tiny net
+
+    if (!result) return;
+
+    const lm    = result.landmarks.positions;  // array of 68 {x,y}
+    const leftEAR  = eyeAspectRatio(L_EYE.map(i => lm[i]));
+    const rightEAR = eyeAspectRatio(R_EYE.map(i => lm[i]));
+    const ear      = (leftEAR + rightEAR) / 2;
+
+    // Blink state machine: open → close → open = 1 blink
+    if (!eyeWasClosed && ear < EAR_CLOSE) {
+      eyeWasClosed = true;
+    } else if (eyeWasClosed && ear > EAR_OPEN) {
+      eyeWasClosed = false;
+      blinkCount++;
+      if (!blinkConfirmed) {
+        blinkConfirmed = true;
+        console.log("Blink detected ✅  EAR sequence:", prevEAR, "→", ear);
+      }
+    }
+    prevEAR = ear;
+    updateLivenessUI();
+  } catch(err) {
+    // silent — detection can fail on blurry frames
+  }
+}
+
+// ─── Motion check ─────────────────────────────────────────────────────────────
+function captureGray(video) {
+  const w = video.videoWidth  || 320;
+  const h = video.videoHeight || 240;
+  const tmp = document.createElement("canvas");
+  tmp.width = Math.floor(w / 4);   // downsample 4× for speed
+  tmp.height= Math.floor(h / 4);
+  const ctx = tmp.getContext("2d");
+  ctx.drawImage(video, 0, 0, tmp.width, tmp.height);
+  // Return R channel only from centre crop
+  const cx = Math.floor(tmp.width  * 0.2);
+  const cy = Math.floor(tmp.height * 0.1);
+  const cw = Math.floor(tmp.width  * 0.6);
+  const ch = Math.floor(tmp.height * 0.8);
+  if (cw < 1 || ch < 1) return null;
+  return ctx.getImageData(cx, cy, cw, ch).data;
+}
+
+function meanDiff(a, b) {
+  let s = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i += 4) s += Math.abs(a[i] - b[i]);
+  return s / (n / 4);
+}
+
+function checkMotion() {
+  const snap = captureGray(markVideo);
+  if (!snap) return;
+  if (frameHistory.length >= 2) {
+    const diff = meanDiff(frameHistory[frameHistory.length - 1], snap);
+    motionOk = diff >= MOTION_THRESH;
+  }
+  frameHistory.push(snap);
+  if (frameHistory.length > HIST_LEN) frameHistory.shift();
+  updateLivenessUI();
+}
+
+// ─── Liveness UI ─────────────────────────────────────────────────────────────
+function updateLivenessUI() {
+  // If face-api failed to load, skip blink requirement — motion-only liveness
+  const requireBlink = faceApiReady;
+
+  const blinkPct  = requireBlink ? (blinkConfirmed ? 50 : 0) : 50;
+  const motionPct = motionOk ? 50 : 0;
+  livenessBarFill.style.width = (blinkPct + motionPct) + "%";
+
+  if (requireBlink) {
+    livenessLabel.textContent =
+      `Blink: ${blinkConfirmed ? "✔ detected" : `needed (${blinkCount}/1)`}  |  Motion: ${motionOk ? "✔ ok" : "move slightly"}`;
+  } else {
+    livenessLabel.textContent =
+      `Motion liveness: ${motionOk ? "✔ detected" : "please move slightly"}  (blink detector loading…)`;
+  }
+
+  const live = isLive();
+  if (live) {
+    livenessPill.className   = "liveness-pill pill-ok";
+    livenessPill.textContent = "✅ Liveness confirmed — scanning…";
+  } else if (blinkConfirmed && !motionOk) {
+    livenessPill.className   = "liveness-pill pill-blink";
+    livenessPill.textContent = "⚠️ Move or tilt your head slightly";
+  } else if (!blinkConfirmed && requireBlink) {
+    livenessPill.className   = "liveness-pill pill-blink";
+    livenessPill.textContent = "👁 Please blink once naturally";
+  } else {
+    livenessPill.className   = "liveness-pill pill-wait";
+    livenessPill.textContent = "Checking liveness…";
+  }
+}
+
+function isLive() {
+  // If blink detector not available, rely on motion alone
+  if (!faceApiReady) return motionOk;
+  return blinkConfirmed && motionOk;
+}
+
+// ─── Reset liveness state ─────────────────────────────────────────────────────
+function resetLiveness() {
+  blinkConfirmed = false;
+  blinkCount     = 0;
+  eyeWasClosed   = false;
+  prevEAR        = null;
+  motionOk       = false;
+  frameHistory.length = 0;
+  livenessBarFill.style.width = "0%";
+  livenessPill.className   = "liveness-pill pill-wait";
+  livenessPill.textContent = "Waiting for camera…";
+  livenessLabel.textContent = "";
+}
+
+// ─── Start / Stop ─────────────────────────────────────────────────────────────
+startMarkBtn.addEventListener("click", async () => {
+  const subject = subjectSelect.value;
+  if (!subject) { alert("Please select a subject first."); return; }
+
+  startMarkBtn.disabled  = true;
+  stopMarkBtn.disabled   = false;
+  subjectBadge.textContent = subjectSelect.options[subjectSelect.selectedIndex].text;
+  subjectBadge.classList.remove("d-none");
+  subjectSelect.disabled = true;
+  resetLiveness();
+
+  try {
+    markStream = await navigator.mediaDevices.getUserMedia({ video:{ width:640, height:480 } });
+    markVideo.srcObject = markStream;
+    await markVideo.play();
+    markStatus.innerText = "Scanning… please blink once to verify liveness.";
+
+    // Blink detection loop — every 200 ms
+    blinkInterval = setInterval(runBlinkDetection, 200);
+
+    // Motion check — every 400 ms
+    const motionTimer = setInterval(checkMotion, 400);
+    markVideo._motionTimer = motionTimer;
+
+    // Recognition loop — every 1200 ms
+    markInterval = setInterval(() => captureAndRecognize(subject), 1200);
+
+  } catch(err) {
+    alert("Camera error: " + err.message);
+    startMarkBtn.disabled = false;
+    stopMarkBtn.disabled  = true;
+  }
+});
+
+stopMarkBtn.addEventListener("click", () => {
+  clearInterval(markInterval);
+  clearInterval(blinkInterval);
+  clearInterval(markVideo._motionTimer);
+  if (markStream) markStream.getTracks().forEach(t => t.stop());
+  clearOverlay();
+  startMarkBtn.disabled  = false;
+  stopMarkBtn.disabled   = true;
+  subjectSelect.disabled = false;
+  markStatus.innerText   = "Stopped.";
+  resetLiveness();
+});
+
+// ─── Capture + Recognise ──────────────────────────────────────────────────────
+async function captureAndRecognize(subjectId) {
+  if (markVideo.readyState < 2) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = markVideo.videoWidth  || 640;
+  canvas.height = markVideo.videoHeight || 480;
+  const ctx2d = canvas.getContext("2d");
+  ctx2d.drawImage(markVideo, 0, 0);
+
+  // ── Backlight warning: sample top-centre region for overexposure ──────────
+  const sampleW = Math.floor(canvas.width * 0.4);
+  const sampleH = Math.floor(canvas.height * 0.2);
+  const sampleX = Math.floor((canvas.width - sampleW) / 2);
+  const pixels  = ctx2d.getImageData(sampleX, 0, sampleW, sampleH).data;
+  let brightPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] > 220 && pixels[i+1] > 220 && pixels[i+2] > 220) brightPixels++;
+  }
+  const brightRatio = brightPixels / (sampleW * sampleH);
+  if (brightRatio > 0.25) {
+    markStatus.innerHTML =
+      `<span style="color:#d97706;font-weight:600">💡 Bright light behind you — move so light is in front of your face</span>`;
+    return;   // skip this frame
+  }
+
+  const live = isLive();
+  const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.85));
+
+  const fd = new FormData();
+  fd.append("image",              blob, "snap.jpg");
+  fd.append("subject_id",         subjectId);
+  fd.append("liveness_confirmed", live ? "true" : "false");
+
+  try {
+    const res = await fetch("/recognize_face", { method:"POST", body:fd });
+    const j   = await res.json();
+
+    if (j.recognized) {
+      const conf = Math.round((j.confidence || 0) * 100);
+      markStatus.innerHTML = j.already_marked
+        ? `<span style="color:#f59e0b;font-weight:600">⚠️ Already marked at ${j.marked_time || ""}</span>`
+        : `<span style="color:#10b981;font-weight:600">✔ ${j.name}</span> — ${conf}% confidence`;
+
+      drawOverlay(j.name, conf);
+
+      if (!recognizedIds.has(j.student_id) && !j.already_marked) {
+        recognizedIds.add(j.student_id);
+        const empty = recognizedList.querySelector(".empty-list");
+        if (empty) empty.remove();
+        const item = document.createElement("div");
+        item.className = "recognized-item";
+        item.innerHTML = `
+          <div class="avatar">${j.name[0].toUpperCase()}</div>
+          <div>
+            <div class="rname">${j.name}</div>
+            <div class="rtime">${new Date().toLocaleTimeString()}</div>
+          </div>`;
+        recognizedList.prepend(item);
+      }
+    } else {
+      clearOverlay();
+      const msg = j.error || "Face not recognised";
+      const msgLow = msg.toLowerCase();
+      let color = "#ef4444", icon = "❌";
+      if (msgLow.includes("liveness"))                          { color = "#d97706"; icon = "👁"; }
+      else if (msgLow.includes("lighting") || msgLow.includes("dark")) { color = "#d97706"; icon = "💡"; }
+      else if (msgLow.includes("not enrolled") || msgLow.includes("semester") || msgLow.includes("course")) { color = "#7c3aed"; icon = "🚫"; }
+      else if (msgLow.includes("no face"))                      { color = "#64748b"; icon = "🔍"; }
+      else if (msgLow.includes("low confidence"))               { color = "#ea580c"; icon = "🤔"; }
+      markStatus.innerHTML = `<span style="color:${color};font-weight:600">${icon} ${msg}</span>`;
+    }
+  } catch(err) {
+    console.error("recognize_face error:", err);
+  }
+}
+
+// ─── Overlay drawing ──────────────────────────────────────────────────────────
+function drawOverlay(name, conf) {
+  const oc  = overlayCanvas;
+  const ctx = oc.getContext("2d");
+  oc.width  = markVideo.offsetWidth;
+  oc.height = markVideo.offsetHeight;
+
+  const pw = oc.width, ph = oc.height;
+  const bx = pw * 0.25, by = ph * 0.15, bw = pw * 0.50, bh = ph * 0.65;
+
+  ctx.clearRect(0, 0, pw, ph);
+  ctx.strokeStyle = "#10b981"; ctx.lineWidth = 3;
+  ctx.strokeRect(bx, by, bw, bh);
+
+  const cs = 18;
+  ctx.strokeStyle = "#34d399"; ctx.lineWidth = 4;
+  [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]].forEach(([x,y]) => {
+    const sx = x === bx ? 1 : -1, sy = y === by ? 1 : -1;
+    ctx.beginPath(); ctx.moveTo(x,y+sy*cs); ctx.lineTo(x,y); ctx.lineTo(x+sx*cs,y); ctx.stroke();
+  });
+
+  const label = `${name}  ${conf}%`;
+  ctx.font = "bold 15px DM Sans, sans-serif";
+  const tw  = ctx.measureText(label).width;
+  const lx  = bx + bw/2 - tw/2 - 8, ly = by - 34;
+  ctx.fillStyle = "#10b981";
+  ctx.beginPath(); ctx.roundRect(lx, ly, tw+16, 28, 6); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.fillText(label, lx+8, ly+19);
+
+  if (overlayTimeout) clearTimeout(overlayTimeout);
+  overlayTimeout = setTimeout(clearOverlay, 1200);
+}
+function clearOverlay() {
+  overlayCanvas.getContext("2d").clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+}
+</script>
+
+<script>
+// Auto-logout ONLY on true tab/window close — not on internal navigation.
+// Any click on an anchor or button that triggers navigation sets this flag,
+// which suppresses the beacon for 2 s (enough for the new page to load).
+let _navigating = false;
+document.addEventListener("click", e => {
+  const a = e.target.closest("a[href]");
+  const b = e.target.closest("button[onclick], button[type='submit']");
+  if (a || b) { _navigating = true; setTimeout(() => { _navigating = false; }, 2000); }
+});
+// Also catch form submits
+document.addEventListener("submit", () => {
+  _navigating = true; setTimeout(() => { _navigating = false; }, 2000);
+});
+window.addEventListener("beforeunload", () => {
+  if (!_navigating) navigator.sendBeacon("/session_end");
+});
+</script>
+</body>
+</html>

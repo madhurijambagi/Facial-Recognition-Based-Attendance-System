@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Manage Students | Digital Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    /* ── MANAGE STUDENTS PAGE STYLES — isolated to this page only ── */
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* CHANGE 1 ▸ Background
+       Was: solid dark navy (#080d17) with dark ink surface cards.
+       Now: soft warm light gradient from sky-blue → lavender → mint,
+            with two decorative blurred colour blobs (blue top-left,
+            indigo bottom-right) — same style as login/signup pages.
+            Only this page is affected; all other pages keep their own styles. */
+    body {
+  font-family: 'DM Sans', sans-serif;
+  background: linear-gradient(
+      135deg,
+      #0f766e 0%,
+      #14b8a6 35%,
+      #06b6d4 70%,
+      #0891b2 100%
+  );
+  color: #0f172a;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+    body::before {
+  content: '';
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(20,184,166,.35) 0%, transparent 70%);
+  top: -160px;
+  left: -140px;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(40px);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(6,182,212,.30) 0%, transparent 70%);
+  bottom: -100px;
+  right: -100px;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(40px);
+}
+    /* bg-grid div still present in HTML — hide it on this light theme */
+    body .bg-grid { display: none; }
+
+    .navbar-custom {
+      background: linear-gradient(90deg, #0f172a, #2563eb);
+      border-bottom: none;
+      position: relative; z-index: 10;
+    }
+    .navbar-custom .navbar-brand { color: #fff !important; letter-spacing: .02em; }
+    .navbar-custom .text-white-50 { color: rgba(255,255,255,.6) !important; }
+
+    .container-lg { position: relative; z-index: 1; }
+
+.page-card {
+  background: linear-gradient(
+      135deg,
+      #ffedd5 0%,
+      #fed7aa 40%,
+      #fdba74 100%
+  );
+  backdrop-filter: blur(16px);
+  border: 1px solid #fb923c;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(234,88,12,.15),
+              0 4px 16px rgba(0,0,0,.08);
+  padding: 1.75rem;
+}    /* CHANGE 2 ▸ Page heading & count text
+       Was: light grey (#e2e8f0) to suit the dark background.
+       Now: near-black (#0f172a) for clear readability on white card. */
+    h4.fw-bold { color: #0f172a; }
+    p.text-muted.small { color: #64748b !important; }
+
+    /* Search box */
+    .search-box {
+      border-radius: 10px; max-width: 280px;
+      background: #f8fafc !important;
+      border: 1.5px solid #e2e8f0 !important;
+      color: #0f172a !important;
+    }
+    .search-box::placeholder { color: #94a3b8; }
+    .search-box:focus {
+      border-color: #2563eb !important;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12) !important;
+      outline: none;
+    }
+
+    /* Add Student button */
+    a.btn.btn-sm.btn-primary {
+      background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+      border: none !important;
+      box-shadow: 0 4px 16px rgba(37,99,235,.3);
+      color: #fff !important;
+    }
+    a.btn.btn-sm.btn-primary:hover {
+      box-shadow: 0 6px 24px rgba(37,99,235,.45);
+      transform: translateY(-1px);
+    }
+
+    /* Table */
+    .table {
+      color: #0f172a;
+      border-color: #e2e8f0;
+    }
+    .table-bordered > :not(caption) > * > * {
+      border-color: #e2e8f0;
+    }
+    thead th {
+      background: #f8fafc;
+      color: #64748b;
+      font-size: .75rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-weight: 700;
+      border-color: #e2e8f0;
+    }
+    tbody tr {
+      transition: background .15s;
+      background: transparent;
+    }
+    tbody tr:hover {
+      background: #f1f5f9 !important;
+    }
+    tbody td {
+      border-color: #e2e8f0;
+      vertical-align: middle;
+    }
+
+    /* CHANGE 3 ▸ Student name font colour
+       Was: light (#e2e8f0) — suited dark card background.
+       Now: deep black (#080d17) so names stand out on the white card. */
+    tbody td strong { color: #080d17; font-weight: 700; }
+
+    /* CHANGE 4 ▸ Attendance records count colour
+       Was: muted slate (#7c8fa8) on dark background.
+       Now: near-black (#111827) — bold and legible on white. */
+    .text-muted { color: #64748b !important; }
+    td .text-muted.fw-600,
+    td span.text-muted { color: #111827 !important; font-weight: 600; }
+
+    /* CHANGE 5 ▸ Face Dataset badge
+       Was: pale sky blue (#93c5fd) text on a dark translucent background.
+       Now: rich dark blue (#1e3a8a) text on a soft blue tinted background
+            so it reads clearly on the now-light card. */
+    .badge-active   { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; border-radius:50px; padding:.2rem .75rem; font-size:.78rem; font-weight:700; }
+    .badge-inactive { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:50px; padding:.2rem .75rem; font-size:.78rem; font-weight:700; }
+    .badge-dataset  { background:#dbeafe; color:#1e3a8a; border:1px solid #bfdbfe; border-radius:50px; padding:.2rem .75rem; font-size:.78rem; font-weight:700; }
+    .badge-nodataset{ background:#fef9c3; color:#713f12; border:1px solid #fde68a; border-radius:50px; padding:.2rem .75rem; font-size:.78rem; font-weight:700; }
+
+    /* CHANGE 6 ▸ Delete button
+       Was: ghost button — transparent background, reddish border, light red text.
+       Now: solid dark red (#991b1b) background with white text, no border,
+            same rounded shape. Hover deepens to #7f1d1d. */
+    .btn-delete {
+      border-radius: 8px; font-size: .82rem; padding: .3rem .85rem;
+      background: #991b1b !important;
+      border: none !important;
+      color: #ffffff !important;
+      font-weight: 600;
+      transition: background .2s, box-shadow .2s;
+    }
+    .btn-delete:hover {
+      background: #7f1d1d !important;
+      box-shadow: 0 4px 14px rgba(153,27,27,.35);
+    }
+
+    /* Confirm modal */
+    .modal-confirm .modal-content {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.18);
+      color: #0f172a;
+    }
+    .modal-confirm .modal-header { background: linear-gradient(135deg,#ef4444,#dc2626); border-radius:14px 14px 0 0; }
+    .modal-confirm .student-info {
+      background: #fef2f2;
+      border-left: 3px solid #ef4444;
+      border-radius: 8px; padding: .75rem 1rem; font-size: .9rem;
+      color: #0f172a;
+    }
+    .modal-confirm .warn-list { font-size: .85rem; color: #64748b; }
+    .modal-footer { border-color: #e2e8f0 !important; }
+    .btn-outline-secondary {
+      border-color: #e2e8f0 !important;
+      color: #64748b !important;
+      background: transparent !important;
+    }
+    .btn-outline-secondary:hover {
+      background: #f8fafc !important;
+      color: #0f172a !important;
+    }
+
+    /* Toast */
+    .toast-wrap { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; display:flex; flex-direction:column; gap:.5rem; }
+    .toast-item {
+      padding:.7rem 1.2rem; border-radius:10px; font-size:.88rem; font-weight:600;
+      display:flex; align-items:center; gap:.5rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,.12);
+      animation: fadeInUp .3s ease both;
+    }
+    .toast-item.success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+    .toast-item.error   { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+    /* Empty state */
+    .empty-state { text-align:center; padding:3rem 1rem; color:#94a3b8; }
+    .empty-state .icon { font-size:2.5rem; margin-bottom:.75rem; }
+
+    /* Page load animation */
+    .page-card { animation: cardIn .5s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes cardIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+    tbody tr {
+      animation: rowIn .4s cubic-bezier(.22,1,.36,1) both;
+    }
+    tbody tr:nth-child(1)  { animation-delay: .00s; }
+    tbody tr:nth-child(2)  { animation-delay: .03s; }
+    tbody tr:nth-child(3)  { animation-delay: .06s; }
+    tbody tr:nth-child(4)  { animation-delay: .09s; }
+    tbody tr:nth-child(5)  { animation-delay: .12s; }
+    tbody tr:nth-child(6)  { animation-delay: .15s; }
+    tbody tr:nth-child(7)  { animation-delay: .18s; }
+    tbody tr:nth-child(8)  { animation-delay: .21s; }
+    tbody tr:nth-child(9)  { animation-delay: .24s; }
+    tbody tr:nth-child(10) { animation-delay: .27s; }
+    tbody tr:nth-child(11) { animation-delay: .30s; }
+    tbody tr:nth-child(12) { animation-delay: .33s; }
+    tbody tr:nth-child(13) { animation-delay: .36s; }
+    tbody tr:nth-child(14) { animation-delay: .39s; }
+    tbody tr:nth-child(15) { animation-delay: .42s; }
+    @keyframes rowIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<nav class="navbar navbar-dark navbar-custom px-3 mb-4">
+  <a class="navbar-brand fw-bold" href="/">← Dashboard</a>
+  <span class="text-white-50 small">Manage Students</span>
+</nav>
+
+<div class="container-lg">
+  <div class="page-card">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h4 class="fw-bold mb-0">Student Registry</h4>
+        <p class="text-muted small mb-0">{{ students|length }} student{{ 's' if students|length != 1 else '' }} registered</p>
+      </div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <input id="searchBox" class="form-control form-control-sm search-box"
+               placeholder="🔍  Search by name or reg no…" oninput="filterTable()"/>
+        <a href="/add_student" class="btn btn-sm btn-primary" style="border-radius:8px;font-weight:600;">
+          ➕ Add Student
+        </a>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle" id="studentsTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Reg No</th>
+            <th>Course</th>
+            <th>Sem</th>
+            <th>Face Dataset</th>
+            <th>Attendance Records</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in students %}
+        <tr id="row-{{ s.student_id }}" data-name="{{ s.name|lower }}" data-reg="{{ (s.reg_no or '')|lower }}">
+          <td class="text-muted" style="font-size:.8rem;">{{ s.student_id }}</td>
+          <td><strong>{{ s.name }}</strong></td>
+          <td>{{ s.reg_no or '—' }}</td>
+          <td>{{ s.course or '—' }}</td>
+          <td>{{ s.semester or '—' }}</td>
+          <td>
+            {% if s.has_dataset %}
+              <span class="badge-dataset">📁 {{ s.image_count }} images</span>
+            {% else %}
+              <span class="badge-nodataset">⚠️ No dataset</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="text-muted fw-600">{{ s.attendance_count }}</span>
+            {% if s.attendance_count > 0 %}
+              <span class="text-muted" style="font-size:.78rem;"> records</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="{{ 'badge-active' if s.is_active else 'badge-inactive' }}">
+              {{ 'Active' if s.is_active else 'Inactive' }}
+            </span>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline-danger btn-delete"
+                    data-id="{{ s.student_id }}"
+                    data-name="{{ s.name }}"
+                    data-reg="{{ s.reg_no or '' }}"
+                    data-imgs="{{ s.image_count }}"
+                    data-att="{{ s.attendance_count }}"
+                    onclick="confirmDelete(this)">
+              🗑 Delete
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      {% if not students %}
+      <div class="empty-state">
+        <div class="icon">👤</div>
+        <p class="fw-600 mb-1">No students registered yet</p>
+        <a href="/add_student" class="btn btn-sm btn-primary mt-2">Add First Student</a>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Confirmation Modal ── -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content modal-confirm">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-white fw-bold">⚠️ Confirm Deletion</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-3 pb-1">
+        <div id="modalStudentInfo" class="student-info mb-3"></div>
+        <p class="fw-600 mb-2" style="font-size:.92rem;">This action will permanently delete:</p>
+        <ul class="warn-list mb-0" id="modalWarnList"></ul>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"
+                style="border-radius:8px;">Cancel</button>
+        <button type="button" class="btn btn-sm btn-danger fw-bold" id="confirmDeleteBtn"
+                style="border-radius:8px;">Yes, Delete Permanently</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let _pendingId = null;
+let _modal     = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  _modal = new bootstrap.Modal(document.getElementById("deleteModal"));
+});
+
+function confirmDelete(btn) {
+  const id       = btn.dataset.id;
+  const name     = btn.dataset.name;
+  const regNo    = btn.dataset.reg;
+  const imgCount = parseInt(btn.dataset.imgs);
+  const attCount = parseInt(btn.dataset.att);
+
+  _pendingId = id;
+
+  document.getElementById("modalStudentInfo").innerHTML =
+    `<strong>${name}</strong>${regNo ? ` &nbsp;·&nbsp; Reg: ${regNo}` : ""}`;
+
+  const warnItems = [
+    `<li>Student record from the database</li>`,
+    imgCount > 0
+      ? `<li>Face dataset folder &nbsp;<strong>(${imgCount} images)</strong></li>`
+      : `<li>Face dataset folder (currently empty)</li>`,
+    attCount > 0
+      ? `<li>All <strong>${attCount}</strong> attendance record${attCount > 1 ? "s" : ""} linked to this student</li>`
+      : `<li>Attendance records (none exist yet)</li>`,
+  ];
+  document.getElementById("modalWarnList").innerHTML = warnItems.join("");
+
+  _modal.show();
+}
+
+document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
+  if (!_pendingId) return;
+  const id = _pendingId;
+  _pendingId = null;
+  _modal.hide();
+
+  const btn = document.querySelector(`[data-id="${id}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
+
+  try {
+    const res  = await fetch(`/delete_student/${id}`, { method: "POST" });
+    const data = await res.json();
+
+    if (data.success) {
+      const row = document.getElementById(`row-${id}`);
+      if (row) {
+        row.style.transition = "opacity .35s, transform .35s";
+        row.style.opacity = "0";
+        row.style.transform = "translateX(20px)";
+        setTimeout(() => row.remove(), 370);
+      }
+      showToast("✅ Student deleted successfully.", "success");
+      // Update count badge
+      const countEl = document.querySelector(".page-card p.text-muted.small");
+      if (countEl) {
+        const cur = parseInt(countEl.textContent);
+        if (!isNaN(cur)) countEl.textContent = `${cur - 1} student${cur - 1 !== 1 ? 's' : ''} registered`;
+      }
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = "🗑 Delete"; }
+      showToast("❌ Delete failed: " + (data.error || "Unknown error"), "error");
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = "🗑 Delete"; }
+    showToast("❌ Network error: " + err.message, "error");
+  }
+});
+
+function filterTable() {
+  const q    = document.getElementById("searchBox").value.toLowerCase().trim();
+  const rows = document.querySelectorAll("#studentsTable tbody tr");
+  rows.forEach(row => {
+    const name = row.dataset.name || "";
+    const reg  = row.dataset.reg  || "";
+    row.style.display = (!q || name.includes(q) || reg.includes(q)) ? "" : "none";
+  });
+}
+
+function showToast(msg, type) {
+  const wrap = document.getElementById("toastWrap");
+  const div  = document.createElement("div");
+  div.className = `toast-item ${type}`;
+  div.textContent = msg;
+  wrap.appendChild(div);
+  setTimeout(() => div.remove(), 3800);
+}
+</script>
+
+<script>
+// Auto-logout ONLY on true tab/window close — not on internal navigation.
+// Any click on an anchor or button that triggers navigation sets this flag,
+// which suppresses the beacon for 2 s (enough for the new page to load).
+let _navigating = false;
+document.addEventListener("click", e => {
+  const a = e.target.closest("a[href]");
+  const b = e.target.closest("button[onclick], button[type='submit']");
+  if (a || b) { _navigating = true; setTimeout(() => { _navigating = false; }, 2000); }
+});
+// Also catch form submits
+document.addEventListener("submit", () => {
+  _navigating = true; setTimeout(() => { _navigating = false; }, 2000);
+});
+window.addEventListener("beforeunload", () => {
+  if (!_navigating) navigator.sendBeacon("/session_end");
+});
+</script>
+</body>
+</html>

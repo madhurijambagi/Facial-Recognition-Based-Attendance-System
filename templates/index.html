@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Digital Attendance Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Sora:wght@700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:   #2563eb;
+      --brand2:  #4f46e5;
+      --accent:  #0ea5e9;
+      --green:   #10b981;
+      --amber:   #f59e0b;
+      --text:    #0f172a;
+      --muted:   #64748b;
+      --surface: rgba(255,255,255,0.88);
+      --border:  rgba(148,163,184,0.25);
+      --r:       16px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      background: #0f172a;
+      min-height: 100vh;
+    }
+
+    /* ── Mesh background ── */
+    .bg-mesh {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 0%,   #1e3a5f 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 85% 10%,  #312e81 0%, transparent 65%),
+        radial-gradient(ellipse 50% 70% at 50% 100%, #0c4a6e 0%, transparent 70%),
+        #0f172a;
+    }
+    .bg-mesh::after {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.025'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* ── Layout ── */
+    .layout { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Topbar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+    .topbar-brand {
+      font-family: 'Sora', sans-serif; font-size: 1.15rem; font-weight: 800;
+      color: #fff; display: flex; align-items: center; gap: .55rem;
+    }
+    .topbar-brand .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      flex-shrink: 0;
+    }
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+    .user-chip {
+      display: flex; align-items: center; gap: .55rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      padding: .38rem .85rem .38rem .5rem;
+    }
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; font-weight: 700; color: #fff;
+    }
+    .user-name { color: #e2e8f0; font-size: .88rem; font-weight: 500; }
+    .btn-logout {
+      padding: .42rem 1.05rem;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: #fca5a5; border-radius: 8px;
+      font-size: .85rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; text-decoration: none;
+      transition: background .2s;
+    }
+    .btn-logout:hover { background: rgba(239,68,68,0.22); }
+
+    /* ── Main grid ── */
+    .main { flex: 1; padding: 2rem; display: grid; gap: 1.5rem;
+            grid-template-columns: 280px 1fr; align-items: start; }
+
+    @media (max-width: 900px) {
+      .main { grid-template-columns: 1fr; }
+    }
+
+    /* ── Glass card ── */
+    .glass {
+      background: var(--surface);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+
+    /* ── Left sidebar ── */
+    .sidebar { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .welcome-card { padding: 1.5rem; }
+    .welcome-card .role-badge {
+      display: inline-block;
+      padding: .22rem .7rem;
+      background: rgba(37,99,235,.1);
+      color: var(--brand);
+      border-radius: 50px;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-bottom: .85rem;
+    }
+    .welcome-card h3 {
+      font-family: 'Sora', sans-serif; font-size: 1.1rem;
+      font-weight: 800; color: var(--text); margin-bottom: .25rem;
+    }
+    .welcome-card p { color: var(--muted); font-size: .88rem; }
+
+    .nav-card { padding: 1rem; }
+    .nav-card .nav-label {
+      font-size: .75rem; font-weight: 700; color: var(--muted);
+      letter-spacing: .07em; text-transform: uppercase;
+      padding: 0 .5rem .5rem;
+    }
+    .nav-link {
+      display: flex; align-items: center; gap: .7rem;
+      padding: .72rem .9rem; border-radius: 10px;
+      text-decoration: none; color: var(--text);
+      font-weight: 500; font-size: .95rem;
+      transition: background .15s, color .15s;
+      margin-bottom: .15rem;
+    }
+    .nav-link:hover { background: #eff6ff; color: var(--brand); }
+    .nav-link .icon { font-size: 1.15rem; width: 26px; text-align: center; }
+
+    /* Subjects card */
+    .subjects-card { padding: 1.25rem; }
+    .subjects-card h4 { font-size: .88rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .85rem; }
+    .subject-chip {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .55rem .8rem; border-radius: 10px;
+      background: linear-gradient(135deg,#eff6ff,#eef2ff);
+      border: 1px solid #dbeafe;
+      margin-bottom: .5rem;
+      font-size: .88rem;
+    }
+    .subject-chip .sub-name { font-weight: 600; color: var(--text); }
+    .subject-chip .sub-id { color: var(--brand); font-size: .78rem; font-weight: 700; }
+    .no-subjects { color: var(--muted); font-size: .88rem; font-style: italic; }
+
+    /* ── Right content ── */
+    .content { display: flex; flex-direction: column; gap: 1.5rem; }
+
+    /* Train card */
+    .train-card { padding: 1.5rem; }
+    .train-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .train-card h4 { font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 700; }
+    .btn-train {
+      padding: .5rem 1.25rem;
+      background: linear-gradient(135deg,#2563eb,#4f46e5);
+      color: #fff; border: none; border-radius: 10px;
+      font-size: .9rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: transform .15s, opacity .2s;
+      box-shadow: 0 3px 10px rgba(37,99,235,.3);
+    }
+    .btn-train:hover { transform: translateY(-1px); }
+    .btn-train:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .progress-wrap { background: #e2e8f0; border-radius: 10px; overflow: hidden; height: 14px; }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg,#3b82f6,#8b5cf6);
+      width: 0%; border-radius: 10px;
+      transition: width .4s ease;
+      font-size: .7rem; color: #fff; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .train-msg { color: var(--muted); font-size: .85rem; margin-top: .6rem; }
+
+    /* Chart card */
+    .chart-card { padding: 1.5rem; }
+    .chart-card h4 { font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* Recent records card */
+    .records-card { padding: 1.5rem; }
+    .records-card h4 { font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    thead th { background: #f1f5f9; color: var(--muted); font-weight: 700;
+               text-transform: uppercase; font-size: .75rem; letter-spacing: .04em;
+               padding: .55rem .75rem; text-align: left; }
+    tbody tr { border-bottom: 1px solid #f1f5f9; }
+    tbody tr:last-child { border: none; }
+    tbody td { padding: .6rem .75rem; color: var(--text); }
+    .badge-present { background:#dcfce7;color:#16a34a;border-radius:50px;padding:.15rem .6rem;font-size:.78rem;font-weight:700; }
+    .badge-absent  { background:#fee2e2;color:#dc2626;border-radius:50px;padding:.15rem .6rem;font-size:.78rem;font-weight:700; }
+    .empty-msg { text-align:center;color:var(--muted);padding:2rem 0;font-style:italic; }
+  </style>
+</head>
+<body>
+<div class="bg-mesh"></div>
+
+<div class="layout">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="dot"></div>
+      Digital Attendance
+    </div>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="user-avatar">{{ user.name[0]|upper }}</div>
+        <span class="user-name">{{ user.name }}</span>
+      </div>
+      <a href="/logout" class="btn-logout">Logout</a>
+    </div>
+  </header>
+
+  <!-- Main grid -->
+  <main class="main">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="glass welcome-card">
+        <div class="role-badge">{{ user.role }}</div>
+        <h3>Hello, {{ user.name.split(' ')[0] }} 👋</h3>
+        <p>{{ user.email }}</p>
+      </div>
+
+      <div class="glass nav-card">
+        <div class="nav-label">Navigation</div>
+        <a class="nav-link" href="/add_student"><span class="icon">➕</span> Add Student</a>
+        <a class="nav-link" href="/students"><span class="icon">👥</span> Manage Students</a>
+        <a class="nav-link" href="/mark_attendance"><span class="icon">✅</span> Mark Attendance</a>
+        <a class="nav-link" href="/attendance_record"><span class="icon">📋</span> View Records</a>
+        <a class="nav-link" href="/download_csv"><span class="icon">⬇️</span> Download CSV</a>
+      </div>
+
+      {% if subjects %}
+      <div class="glass subjects-card">
+        <h4>Your Subjects</h4>
+        {% for s in subjects %}
+        <div class="subject-chip">
+          <span class="sub-name">{{ s.subject_name }}</span>
+          <span class="sub-id">{{ s.subject_id }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </aside>
+
+    <!-- Content area -->
+    <section class="content">
+
+      <!-- Train Model -->
+      <div class="glass train-card">
+        <div class="train-card-top">
+          <h4>🤖 Train Recognition Model</h4>
+          <button id="trainBtn" class="btn-train">Start Training</button>
+        </div>
+        <div class="progress-wrap">
+          <div id="trainProgress" class="progress-fill">0%</div>
+        </div>
+        <div id="trainMsg" class="train-msg">Model not trained yet.</div>
+      </div>
+
+      <!-- Attendance Chart -->
+      <div class="glass chart-card">
+        <h4>📊 Attendance — Last 30 days</h4>
+        <div class="chart-wrap">
+          <canvas id="attendanceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Records -->
+      <div class="glass records-card">
+        <h4>🕐 Recent Attendance</h4>
+        {% if recent_records %}
+        <table>
+          <thead>
+            <tr><th>Student</th><th>Subject</th><th>Date</th><th>Time</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+          {% for r in recent_records %}
+          <tr>
+            <td>{{ r.student_name }}</td>
+            <td>{{ r.subject_name }}</td>
+            <td>{{ r.attendance_date }}</td>
+            <td>{{ r.attendance_time }}</td>
+            <td><span class="badge-{{ r.status|lower }}">{{ r.status }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-msg">No attendance records yet.</div>
+        {% endif %}
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const trainBtn      = document.getElementById("trainBtn");
+  const trainProgress = document.getElementById("trainProgress");
+  const trainMsg      = document.getElementById("trainMsg");
+
+  async function pollStatus() {
+    try {
+      const res  = await fetch("/train_status");
+      const data = await res.json();
+      trainProgress.style.width = data.progress + "%";
+      trainProgress.innerText   = data.progress + "%";
+      trainMsg.innerText        = data.message || "";
+      return data;
+    } catch (e) { console.error(e); return null; }
+  }
+
+  trainBtn.addEventListener("click", async () => {
+    trainBtn.disabled = true;
+    const start = await fetch("/train_model");
+    if (!start.ok && start.status !== 202) {
+      alert("Failed to start training"); trainBtn.disabled = false; return;
+    }
+    trainMsg.innerText = "Training started…";
+    const t = setInterval(async () => {
+      const s = await pollStatus();
+      if (s && s.progress >= 100) {
+        clearInterval(t); trainBtn.disabled = false; alert("Training completed ✅");
+      }
+    }, 1500);
+  });
+
+  let chart = null;
+  async function updateChart() {
+    const res  = await fetch("/attendance_stats");
+    const data = await res.json();
+    const ctx  = document.getElementById("attendanceChart").getContext("2d");
+    if (!chart) {
+      chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: data.dates,
+          datasets: [{
+            label: "Students Present",
+            data: data.counts,
+            backgroundColor: "rgba(59,130,246,0.65)",
+            borderColor: "#2563eb",
+            borderWidth: 1.5,
+            borderRadius: 5,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 10, font: { size: 11 } } },
+            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+          }
+        }
+      });
+    } else {
+      chart.data.labels = data.dates;
+      chart.data.datasets[0].data = data.counts;
+      chart.update();
+    }
+  }
+  updateChart();
+  setInterval(updateChart, 10000);
+});
+</script>
+
+<script>
+// Auto-logout ONLY on true tab/window close — not on internal navigation.
+// Any click on an anchor or button that triggers navigation sets this flag,
+// which suppresses the beacon for 2 s (enough for the new page to load).
+let _navigating = false;
+document.addEventListener("click", e => {
+  const a = e.target.closest("a[href]");
+  const b = e.target.closest("button[onclick], button[type='submit']");
+  if (a || b) { _navigating = true; setTimeout(() => { _navigating = false; }, 2000); }
+});
+// Also catch form submits
+document.addEventListener("submit", () => {
+  _navigating = true; setTimeout(() => { _navigating = false; }, 2000);
+});
+window.addEventListener("beforeunload", () => {
+  if (!_navigating) navigator.sendBeacon("/session_end");
+});
+</script>
+</body>
+</html>

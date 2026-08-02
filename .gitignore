@@ -1,0 +1,15 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore databases
+*.db
+
+# Ignore dataset folder
+dataset/
+
+# Ignore environment files
+.env
+
+# Ignore VS Code settings
+.vscode/
