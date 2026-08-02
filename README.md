@@ -585,29 +585,32 @@
 # Perfect for \*\*college projects, internships, and placements\*\* 🚀
 
 
-
-## Screenshots
+## 📸 Screenshots
 
 ### Login Page
 
-![Login Page](images/login.png)
+![Login Page](images/loginpage.png)
 
 ### Dashboard
 
 ![Dashboard](images/dashboard.png)
 
+### Create Account
+
+![Create Account](images/CreateAccount.png)
+
 ### Add Student
 
-![Add Student](images/add_student.png)
+![Add Student](images/addstudent.png)
 
 ### Manage Students
 
-![Manage Students](images/manage_students.png)
+![Manage Students](images/managestudents.png)
 
 ### Mark Attendance
 
-![Mark Attendance](images/mark_attendance.png)
+![Mark Attendance](images/attendance.png)
 
 ### Attendance Records
 
-![Attendance Records](images/attendance_records.png)
+![Attendance Records](images/viewrecords.png)
