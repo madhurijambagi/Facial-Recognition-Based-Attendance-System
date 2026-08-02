@@ -586,3 +586,28 @@
 
 
 
+## Screenshots
+
+### Login Page
+
+![Login Page](images/login.png)
+
+### Dashboard
+
+![Dashboard](images/dashboard.png)
+
+### Add Student
+
+![Add Student](images/add_student.png)
+
+### Manage Students
+
+![Manage Students](images/manage_students.png)
+
+### Mark Attendance
+
+![Mark Attendance](images/mark_attendance.png)
+
+### Attendance Records
+
+![Attendance Records](images/attendance_records.png)
