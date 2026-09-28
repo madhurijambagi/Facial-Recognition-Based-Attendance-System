@@ -13,3 +13,11 @@ dataset/
 
 # Ignore VS Code settings
 .vscode/
+
+# Virtual environments
+venv/
+.venv/
+
+# Test / lint artifacts
+.pytest_cache/
+.flake8_cache/
